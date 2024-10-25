@@ -13,7 +13,7 @@ import click
 import cv2
 import numpy as np
 import scipy.spatial.transform as st
-from umi.real_world.real_env import RealEnv
+from umi.real_world.real_env_original import RealEnv
 from umi.real_world.spacemouse_shared_memory import Spacemouse
 from umi.common.precise_sleep import precise_wait
 from umi.real_world.keystroke_counter import (

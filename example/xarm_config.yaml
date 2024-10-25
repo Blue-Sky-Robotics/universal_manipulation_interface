@@ -1,0 +1,78 @@
+# Configuration for XArm robot(s)
+robots:
+  - robot_type: 'xarm'
+    robot_ip: '192.168.1.xxx'  # Replace with your XArm's IP
+    
+    # Control parameters
+    frequency: 125  # Hz
+    max_pos_speed: 250.0  # mm/s
+    max_rot_speed: 1.0  # rad/s
+    
+    # Safety and collision parameters
+    height_threshold: 0.01  # meters, minimum height from table
+    sphere_center: [0, 0, 0.1]  # collision checking sphere center relative to end-effector
+    sphere_radius: 0.15  # meters, for collision checking
+    
+    # Robot specifications
+    payload_mass: 5.0  # kg, XArm6's max payload
+    payload_cog: [0, 0, 0]  # meters, center of gravity offset
+    
+    # TCP (Tool Center Point) settings
+    tcp_offset: [0, 0, 0.21, 0, 0, 0]  # [x, y, z, rx, ry, rz] in meters and radians
+    
+    # Initial joint configuration (optional)
+    init_joints: [0, -90, -90, -90, 90, 0]  # degrees
+    init_joints_speed: 20.0  # degrees/s
+
+    # Workspace limits
+    workspace_limits:
+      min_position: [-600, -600, -600]  # mm
+      max_position: [600, 600, 600]  # mm
+
+grippers:
+  - gripper_type: 'xarm_gripper'
+    # Gripper specifications
+    max_width: 85.0  # mm
+    min_width: 0.0   # mm
+    max_speed: 5000  # counts/s
+    
+    # Gripper dimensions (for collision checking)
+    finger_thickness: 20.0  # mm
+    finger_length: 85.0    # mm
+
+# For dual-arm setup, this transform specifies the relative position
+# between two robots. Remove if using single robot.
+tx_left_right:
+  # Translation matrix from left robot base to right robot base
+  # Default assumes robots are 0.5m apart along x-axis
+  - [1, 0, 0, 0.5]  # x translation
+  - [0, 1, 0, 0]    # y translation
+  - [0, 0, 1, 0]    # z translation
+  - [0, 0, 0, 1]    # homogeneous coordinate
+
+# Camera settings
+cameras:
+  reorder: [0]  # Camera reordering if needed
+  resolution: [640, 480]
+  fps: 30
+  latency: 0.17  # Camera observation latency in seconds
+
+# Timing parameters
+timing:
+  command_latency: 0.01  # seconds
+  robot_observation_latency: 0.0001
+  gripper_observation_latency: 0.01
+
+# Motion settings
+motion:
+  steps_per_inference: 6
+  max_duration: 2000  # seconds
+  position_threshold: 0.001  # meters
+  rotation_threshold: 0.01  # radians
+
+# Safety settings
+safety:
+  collision_avoidance: true
+  soft_limits: true
+  acceleration_scaling: 0.5
+  speed_scaling: 0.5
