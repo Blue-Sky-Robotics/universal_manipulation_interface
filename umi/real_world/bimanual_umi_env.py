@@ -21,14 +21,16 @@ from diffusion_policy.common.cv2_util import (
 from umi.common.usb_util import reset_all_elgato_devices, get_sorted_v4l_paths
 from umi.common.pose_util import pose_to_pos_rot
 from umi.common.interpolation_util import get_interp1d, PoseInterpolator
+from .xarm_interpolation_controller import XArmInterpolationController
+from .xarm_gripper_controller import XArmGripperController
 
 
 class BimanualUmiEnv:
     def __init__(self, 
             # required params
             output_dir,
-            robots_config, # list of dict[{robot_type: 'ur5', robot_ip: XXX, obs_latency: 0.0001, action_latency: 0.1, tcp_offset: 0.21}]
-            grippers_config, # list of dict[{gripper_ip: XXX, gripper_port: 1000, obs_latency: 0.01, , action_latency: 0.1}]
+            robots_config, # list of dict[{robot_type: 'ur5'/'franka'/'xarm', robot_ip: XXX, obs_latency: 0.0001, action_latency: 0.1, tcp_offset: 0.21}]
+            grippers_config, # list of dict[{obs_latency: 0.01, action_latency: 0.1}]  # Simplified for XArm
             # env params
             frequency=20,
             # obs
@@ -51,8 +53,8 @@ class BimanualUmiEnv:
             robot_obs_horizon=2,
             gripper_obs_horizon=2,
             # action
-            max_pos_speed=0.25,
-            max_rot_speed=0.6,
+            max_pos_speed=250.0,
+            max_rot_speed=1.0,
             init_joints=False,
             # vis params
             enable_multi_cam_vis=True,
@@ -206,9 +208,9 @@ class BimanualUmiEnv:
             j_init = None
 
         assert len(robots_config) == len(grippers_config)
-        robots: List[RTDEInterpolationController] = list()
-        grippers: List[WSGController] = list()
-        for rc in robots_config:
+        robots = list()
+        grippers = list()
+        for rc, gc in zip(robots_config, grippers_config):
             if rc['robot_type'].startswith('ur5'):
                 assert rc['robot_type'] in ['ur5', 'ur5e']
                 this_robot = RTDEInterpolationController(
@@ -240,20 +242,49 @@ class BimanualUmiEnv:
                     verbose=False,
                     receive_latency=rc['robot_obs_latency']
                 )
+            elif rc['robot_type'] == ('xarm'):
+                # Add xarm support
+                this_robot = XArmInterpolationController(
+                    shm_manager=shm_manager,
+                    robot_ip=rc['robot_ip'],
+                    frequency=125,
+                    max_pos_speed=max_pos_speed,
+                    max_rot_speed=max_rot_speed,
+                    launch_timeout=3,
+                    tcp_offset_pose=[0, 0, rc['tcp_offset'], 0, 0, 0],
+                    payload_mass=None,
+                    payload_cog=None,
+                    joints_init=j_init if init_joints else None,
+                    joints_init_speed=20,
+                    soft_real_time=False,
+                    verbose=False,
+                    receive_latency=rc['robot_obs_latency']
+                )
+                # xarm gripper is the same connection as the robot
+                this_gripper = XArmGripperController(
+                    shm_manager=shm_manager,
+                    robot_ip=rc['robot_ip'],
+                    frequency=30,
+                    speed=5000,
+                    receive_latency=rc['gripper_obs_latency'],
+                )
+                robots.append(this_robot)
+                grippers.append(this_gripper)
+                continue
+                
             else:
-                raise NotImplementedError()
-            robots.append(this_robot)
+                raise NotImplementedError(f"Robot type {rc['robot_type']} not supported")
 
-        for gc in grippers_config:
-            this_gripper = WSGController(
-                shm_manager=shm_manager,
-                hostname=gc['gripper_ip'],
-                port=gc['gripper_port'],
-                receive_latency=gc['gripper_obs_latency'],
-                use_meters=True
-            )
-
-            grippers.append(this_gripper)
+            if not rc['robot_type'] == 'xarm':
+                this_gripper = WSGController(
+                    shm_manager=shm_manager,
+                    hostname=gc['gripper_ip'],
+                    port=gc['gripper_port'],
+                    receive_latency=gc['gripper_obs_latency'],
+                    use_meters=True
+                )
+                robots.append(this_robot)
+                grippers.append(this_gripper)
 
         self.camera = camera
         
