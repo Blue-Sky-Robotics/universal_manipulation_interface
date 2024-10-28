@@ -187,9 +187,9 @@ class XArmGripperController(mp.Process):
                 # Update state
                 state = {
                     'gripper_state': gripper_state,
-                    'gripper_position': position / self.scale,
-                    'gripper_velocity': 0.0,  # XArm SDK doesn't provide velocity
-                    'gripper_force': 0.0,     # XArm SDK doesn't provide force
+                    'gripper_position': position,
+                    # 'gripper_velocity': 0.0,  # XArm SDK doesn't provide velocity
+                    # 'gripper_force': 0.0,     # XArm SDK doesn't provide force
                     'gripper_measure_timestamp': time.time(),
                     'gripper_receive_timestamp': time.time(),
                     'gripper_timestamp': time.time() - self.receive_latency
