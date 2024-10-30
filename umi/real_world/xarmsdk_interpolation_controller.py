@@ -4,7 +4,7 @@ import enum
 import multiprocessing as mp
 from multiprocessing.managers import SharedMemoryManager
 import numpy as np
-from xarm.wrapper import XArmAPI
+from xarm import XArmAPI
 
 from umi.shared_memory.shared_memory_queue import SharedMemoryQueue, Empty
 from umi.shared_memory.shared_memory_ring_buffer import SharedMemoryRingBuffer
