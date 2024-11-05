@@ -79,7 +79,7 @@ class XArmInterface:
             raise RuntimeError(f"Failed to update pose: {ret}")
 
     def terminate_current_policy(self):
-        self.arm.stop_move()
+        self.arm.set_state(4)
         self.arm.motion_enable(False)
 
     def close(self):
@@ -89,14 +89,21 @@ class XArmInterpolationController(mp.Process):
     def __init__(self,
         shm_manager: SharedMemoryManager, 
         robot_ip,
-        frequency=100,  # XArm typically operates at lower frequency than Franka
+        frequency=100,
         launch_timeout=3,
         joints_init=None,
         joints_init_duration=None,
         soft_real_time=False,
         verbose=False,
         get_max_k=None,
-        receive_latency=0.0
+        receive_latency=0.0,
+        # Add new parameters
+        max_pos_speed=None,
+        max_rot_speed=None,
+        tcp_offset_pose=None,
+        payload_mass=None,
+        payload_cog=None,
+        joints_init_speed=None
         ):
 
         if joints_init is not None:
@@ -112,6 +119,14 @@ class XArmInterpolationController(mp.Process):
         self.soft_real_time = soft_real_time
         self.receive_latency = receive_latency
         self.verbose = verbose
+        
+        # Store new parameters
+        self.max_pos_speed = max_pos_speed
+        self.max_rot_speed = max_rot_speed
+        self.tcp_offset_pose = tcp_offset_pose
+        self.payload_mass = payload_mass
+        self.payload_cog = payload_cog
+        self.joints_init_speed = joints_init_speed
 
         if get_max_k is None:
             get_max_k = int(frequency * 5)
@@ -237,6 +252,17 @@ class XArmInterpolationController(mp.Process):
         try:
             if self.verbose:
                 print(f"[XArmPositionalController] Connect to robot: {self.robot_ip}")
+            
+            # if self.tcp_offset_pose is not None:
+            #     robot.arm.set_tcp_offset(self.tcp_offset_pose)
+            
+            # if self.payload_mass is not None and self.payload_cog is not None:
+            #     robot.arm.set_payload(self.payload_mass, self.payload_cog)
+                
+            if self.max_pos_speed is not None:
+                ret = robot.arm.set_tcp_maxacc(self.max_pos_speed)
+                if ret < 0:
+                    print (f"[XArmPositionalController] Failed to set max speed: {ret}")
             
             if self.joints_init is not None:
                 robot.move_to_joint_positions(

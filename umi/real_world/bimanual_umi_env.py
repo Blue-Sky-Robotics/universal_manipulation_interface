@@ -5,9 +5,9 @@ import time
 import shutil
 import math
 from multiprocessing.managers import SharedMemoryManager
-from umi.real_world.rtde_interpolation_controller import RTDEInterpolationController
-from umi.real_world.wsg_controller import WSGController
-from umi.real_world.franka_interpolation_controller import FrankaInterpolationController
+#from umi.real_world.rtde_interpolation_controller import RTDEInterpolationController
+#from umi.real_world.wsg_controller import WSGController
+#from umi.real_world.franka_interpolation_controller import FrankaInterpolationController
 from umi.real_world.multi_uvc_camera import MultiUvcCamera, VideoRecorder
 from diffusion_policy.common.timestamp_accumulator import (
     TimestampActionAccumulator,
@@ -266,7 +266,7 @@ class BimanualUmiEnv:
                     robot_ip=rc['robot_ip'],
                     frequency=30,
                     speed=5000,
-                    receive_latency=rc['gripper_obs_latency'],
+                    receive_latency=gc['gripper_obs_latency'],
                 )
                 robots.append(this_robot)
                 grippers.append(this_gripper)
