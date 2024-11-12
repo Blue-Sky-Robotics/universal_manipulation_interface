@@ -27,9 +27,9 @@ tx_tip_flange = np.linalg.inv(tx_flange_tip)
 
 class XArmInterface:
     def __init__(self, ip='192.168.1.211'):  # Replace with your XArm's IP
-        self.arm = XArmAPI(ip)
+        self.arm = XArmAPI(ip, is_radian=False)
         self.arm.motion_enable(enable=True)
-        self.arm.set_mode(0)  # Set to position control mode
+        self.arm.set_mode(1)  # Set to position control mode
         self.arm.set_state(state=0)  # Set to ready state
         # Set maximum acceleration and velocity
         self.arm.set_tcp_maxacc(10000)
@@ -40,8 +40,20 @@ class XArmInterface:
     def get_ee_pose(self):
         # XArm returns [x, y, z, roll, pitch, yaw]
         pose = self.arm.get_position()
-        if pose[0] == 0:  # Check if successful
-            return np.array(pose[1])  # XArm SDK returns [code, [x,y,z,r,p,y]]
+        print(f"Current pose: {pose}")
+        if pose[0] == 0:
+            xyzrpy = np.array(pose[1])
+            # Convert Euler angles to rotation vector
+            xyz = xyzrpy[:3]
+            rpy = xyzrpy[3:]
+            # Create rotation object from Euler angles
+            rot = st.Rotation.from_euler('xyz', rpy, degrees=False)  # or True if angles are in degrees
+            # Convert to rotation vector
+            rotvec = rot.as_rotvec()
+            # Combine position and rotation vector
+            pose = np.concatenate([xyz, rotvec])
+            print (f"get_ee_pose: {pose}")
+            return pose
         else:
             raise RuntimeError(f"Failed to get position: {pose[0]}")
     
@@ -73,11 +85,21 @@ class XArmInterface:
             raise RuntimeError(f"Failed to move to joint positions: {ret}")
 
     def update_desired_ee_pose(self, pose: np.ndarray):
-        # Convert pose to XArm format if necessary
-        ret = self.arm.set_servo_cartesian(pose.tolist(), wait=False)
+        # Convert rotation vector to Euler angles
+        xyz = pose[:3]  # Extract position from policy command
+        rotvec = pose[3:]  # Extract rotation vector (axis-angle) from policy command
+        print(f"Input pose rotation vector: {rotvec}")
+        rot = st.Rotation.from_rotvec(rotvec)  # Convert to rotation object
+        euler = rot.as_euler('xyz', degrees=True)  # Convert to Euler angles (in degrees)
+        print(f"Converted Euler angles: {euler}")
+        # Combine into XArm format [x, y, z, roll, pitch, yaw]
+        xarm_pose = np.concatenate([xyz, euler])
+        print(f"Converted XArm pose: {xarm_pose}")
+        
+        ret = self.arm.set_servo_cartesian(xarm_pose.tolist(), is_radian=False, wait=False)
         if ret != 0:
             raise RuntimeError(f"Failed to update pose: {ret}")
-
+    
     def terminate_current_policy(self):
         self.arm.set_state(4)
         self.arm.motion_enable(False)
@@ -89,7 +111,7 @@ class XArmInterpolationController(mp.Process):
     def __init__(self,
         shm_manager: SharedMemoryManager, 
         robot_ip,
-        frequency=100,
+        frequency=20,
         launch_timeout=3,
         joints_init=None,
         joints_init_duration=None,

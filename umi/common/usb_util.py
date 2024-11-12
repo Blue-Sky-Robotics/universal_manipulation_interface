@@ -59,10 +59,15 @@ def reset_all_elgato_devices():
             dev_usb_path = dev['path']
             reset_usb_device(dev_usb_path)
 
-def get_sorted_v4l_paths(by_id=True):
+def get_sorted_v4l_paths(by_id=True, device_filter='Elgato_HD60_X'):
     """
     If by_id, sort devices by device name + serial number (preserves device order)
     else, sort devices by usb bus id (preserves usb port order)
+    
+    Parameters:
+        by_id (bool): If True, use by-id paths, else use by-path
+        device_filter (str): String to filter devices by name (e.g., 'Elgato_HD60_X')
+                           Set to None to return all devices
     """
     
     dirname = 'by-id'
@@ -74,6 +79,10 @@ def get_sorted_v4l_paths(by_id=True):
     for dev_path in sorted(v4l_dir.glob("*video*")):
         name = dev_path.name
 
+        # Filter for specific device if requested
+        if device_filter is not None and device_filter not in name:
+            continue
+
         # only keep devices ends with "index0"
         # since they are the only valid video devices
         index_str = name.split('-')[-1]
@@ -84,4 +93,18 @@ def get_sorted_v4l_paths(by_id=True):
 
     result = [str(x.absolute()) for x in valid_paths]
 
+    if not result and device_filter is not None:
+        print(f"Warning: No devices found matching filter '{device_filter}'")
+        # Optionally print available devices for debugging
+        all_devices = [str(x.name) for x in v4l_dir.glob("*video*")]
+        print("Available devices:", all_devices)
+
     return result
+
+def get_elgato_path():
+    """
+    Helper function to specifically get the Elgato HD60 X path.
+    Returns None if not found.
+    """
+    paths = get_sorted_v4l_paths(device_filter='Elgato_HD60_X')
+    return paths[0] if paths else None

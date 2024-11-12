@@ -11,7 +11,7 @@ import time
 from multiprocessing.managers import SharedMemoryManager
 from umi.real_world.uvc_camera import UvcCamera, VideoRecorder
 from umi.common.usb_util import reset_all_elgato_devices, get_sorted_v4l_paths
-from polymetis import RobotInterface
+#from polymetis import RobotInterface
 
 
 def test():
@@ -19,7 +19,7 @@ def test():
     # Required to workaround a firmware bug.
     reset_all_elgato_devices()
     v4l_paths = get_sorted_v4l_paths()
-    v4l_path = v4l_paths[0]
+    v4l_path = '/dev/v4l/by-id/usb-Elgato_Elgato_HD60_X_A00XB41426NW9Z-video-index0'
     
     with SharedMemoryManager() as shm_manager:
         # video_recorder = VideoRecorder.create_h264(
@@ -35,7 +35,7 @@ def test():
             fps=30,
             codec='h264_nvenc',
             input_pix_fmt='bgr24',
-            bit_rate=6000*1000
+            bit_rate=4000*1000
         )
 
         with UvcCamera(

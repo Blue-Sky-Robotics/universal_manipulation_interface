@@ -57,7 +57,7 @@ class BimanualUmiEnv:
             max_rot_speed=1.0,
             init_joints=False,
             # vis params
-            enable_multi_cam_vis=True,
+            enable_multi_cam_vis=False,
             multi_cam_vis_resolution=(960, 960),
             # shared memory
             shm_manager=None
@@ -80,7 +80,12 @@ class BimanualUmiEnv:
 
         # Wait for all v4l cameras to be back online
         time.sleep(0.1)
-        v4l_paths = get_sorted_v4l_paths()
+        
+        v4l_paths = get_sorted_v4l_paths(device_filter='Elgato_HD60_X')
+        if not v4l_paths:
+            print('No Elgato capture card found!, falling back to all available cameras')
+            v4l_paths = get_sorted_v4l_paths()
+        
         if camera_reorder is not None:
             paths = [v4l_paths[i] for i in camera_reorder]
             v4l_paths = paths

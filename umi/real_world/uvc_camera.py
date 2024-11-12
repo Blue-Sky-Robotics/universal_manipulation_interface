@@ -31,7 +31,7 @@ class UvcCamera(mp.Process):
             # v4l2 device file path
             # e.g. /dev/video0
             # or /dev/v4l/by-id/usb-Elgato_Elgato_HD60_X_A00XB320216MTR-video-index0
-            dev_video_path,
+            dev_video_path='/dev/v4l/by-id/usb-Elgato_Elgato_HD60_X_A00XB41426NW9Z-video-index0',
             resolution=(1280, 720),
             capture_fps=60,
             put_fps=None,

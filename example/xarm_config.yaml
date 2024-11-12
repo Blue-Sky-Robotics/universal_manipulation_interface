@@ -3,9 +3,9 @@
     {
       "robot_type": "xarm",
       "robot_ip": "192.168.1.211",  # Replace with your xArm's IP
-      "robot_obs_latency": 0.0001,
+      "robot_obs_latency": 0.05,
       "robot_action_latency": 0.1,
-      "tcp_offset": 0.0,  # Adjust if necessary
+      "tcp_offset": 0.2,  # Adjust if necessary
       "height_threshold": 0.024,  # Adjust based on your setup
       "sphere_radius": 0.0,  # Disable collision avoidance for single robot
       "sphere_center": [0.0, 0.0, 0.0]  # Not used for single robot

@@ -60,7 +60,7 @@ class XArmSDKInterpolationController(mp.Process):
             joints_init = np.array(joints_init)
             assert joints_init.shape == (6,)  # XArm6
 
-        super().__init__(name="XArmPositionalController")
+        super().__init__(name="XArmSDKPositionalController")
         self.robot_ip = robot_ip
         self.frequency = frequency
         self.max_pos_speed = max_pos_speed
