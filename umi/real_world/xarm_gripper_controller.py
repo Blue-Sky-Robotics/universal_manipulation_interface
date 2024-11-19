@@ -21,21 +21,19 @@ class XArmGripperController(mp.Process):
             shm_manager: SharedMemoryManager,
             robot_ip,
             frequency=30,
-            speed=5000,  # XArm gripper speed
+            speed=5000,  # XArm gripper speed (1-5000)
             get_max_k=None,
             command_queue_size=1024,
             launch_timeout=3,
             receive_latency=0.0,
-            use_meters=False,
-            verbose=False
+            verbose=True  # Set to True for debugging
             ):
         super().__init__(name="XArmGripperController")
         self.robot_ip = robot_ip
         self.frequency = frequency
-        self.speed = speed
+        self.speed = min(max(speed, 1), 5000)  # Clamp speed to valid range
         self.launch_timeout = launch_timeout
         self.receive_latency = receive_latency
-        self.scale = 1000.0 if use_meters else 1.0
         self.verbose = verbose
 
         if get_max_k is None:
@@ -44,7 +42,7 @@ class XArmGripperController(mp.Process):
         # build input queue
         example = {
             'cmd': Command.SCHEDULE_WAYPOINT.value,
-            'target_pos': 0.0,
+            'target_pos': 0.0,  # Normalized 0-1 position
             'target_time': 0.0
         }
         input_queue = SharedMemoryQueue.create_from_examples(
@@ -56,9 +54,7 @@ class XArmGripperController(mp.Process):
         # build ring buffer
         example = {
             'gripper_state': 0,
-            'gripper_position': 0.0,
-            'gripper_velocity': 0.0,
-            'gripper_force': 0.0,
+            'gripper_position': 0.0,  # Normalized 0-1 position
             'gripper_measure_timestamp': time.time(),
             'gripper_receive_timestamp': time.time(),
             'gripper_timestamp': time.time()
@@ -75,6 +71,13 @@ class XArmGripperController(mp.Process):
         self.input_queue = input_queue
         self.ring_buffer = ring_buffer
         self._last_position = None
+
+    def _normalize_position(self, pos, reverse=False):
+        """Convert between normalized (0-1) and actual gripper position (0-850)"""
+        if reverse:
+            return float(pos) / 850.0  # Actual to normalized 
+        else:
+            return int(pos * 850.0)  # Normalized to actual
 
     def start(self, wait=True):
         super().start()
@@ -134,29 +137,30 @@ class XArmGripperController(mp.Process):
     
     def run(self):
         try:
-            # Initialize XArm
             arm = XArmAPI(self.robot_ip)
-            arm.motion_enable(enable=True)
-            arm.clean_error()
-            arm.set_mode(0)  # Position control mode
-            arm.set_state(state=0)
             
-            # Enable gripper
+            # Initialize gripper
             arm.set_gripper_enable(True)
+            arm.clean_gripper_error()  # Clean any previous errors
             arm.set_gripper_mode(0)  # Position mode
             arm.set_gripper_speed(self.speed)
+            time.sleep(1.0)  # Wait for initialization
             
-            # Initialize gripper position
+            # Get initial position
             code, curr_pos = arm.get_gripper_position()
             if code != 0:
-                raise RuntimeError(f"Failed to get gripper position: {code}")
-            self._last_position = curr_pos
+                print(f"Warning: Failed to get initial gripper position: {code}")
+                curr_pos = 0
+            
+            self._last_position = self._normalize_position(curr_pos, reverse=True)
+            if self.verbose:
+                print(f"Initial gripper position (normalized): {self._last_position}")
             
             curr_t = time.monotonic()
             last_waypoint_time = curr_t
             pose_interp = PoseTrajectoryInterpolator(
                 times=[curr_t],
-                poses=[[curr_pos,0,0,0,0,0]]
+                poses=[[self._last_position]]
             )
             
             keep_running = True
@@ -166,33 +170,40 @@ class XArmGripperController(mp.Process):
             while keep_running:
                 t_now = time.monotonic()
                 dt = 1 / self.frequency
-                t_target = t_now
-                target_pos = pose_interp(t_target)[0]
                 
-                # Move gripper to target position
-                if abs(target_pos - self._last_position) > 0.1:  # Small threshold to avoid unnecessary commands
-                    code = arm.set_gripper_position(target_pos, wait=False)
+                # Get target position
+                target_norm_pos = pose_interp(t_now)[0]
+                target_actual_pos = self._normalize_position(target_norm_pos)
+                
+                # Move gripper if position changed significantly
+                if abs(target_norm_pos - self._last_position) > 0.01:
+                    if self.verbose:
+                        print(f"Moving gripper to {target_actual_pos} (normalized: {target_norm_pos})")
+                    code = arm.set_gripper_position(target_actual_pos, wait=False)
                     if code != 0:
                         print(f"Warning: Failed to set gripper position: {code}")
-                    self._last_position = target_pos
+                    self._last_position = target_norm_pos
 
-                # Get gripper state
+                # Get current state
                 code, position = arm.get_gripper_position()
                 if code != 0:
-                    position = self._last_position
+                    if self.verbose:
+                        print(f"Warning: Failed to get gripper position: {code}")
+                    position = self._normalize_position(self._last_position)
                 
                 code, err_code = arm.get_gripper_err_code()
-                gripper_state = 0 if err_code == 0 else 1
+                if code != 0 and self.verbose:
+                    print(f"Warning: Failed to get gripper error code: {code}")
+                    err_code = 0
                 
                 # Update state
+                t_recv = time.time()
                 state = {
-                    'gripper_state': gripper_state,
-                    'gripper_position': position,
-                    # 'gripper_velocity': 0.0,  # XArm SDK doesn't provide velocity
-                    # 'gripper_force': 0.0,     # XArm SDK doesn't provide force
-                    'gripper_measure_timestamp': time.time(),
-                    'gripper_receive_timestamp': time.time(),
-                    'gripper_timestamp': time.time() - self.receive_latency
+                    'gripper_state': 0 if err_code == 0 else 1,
+                    'gripper_position': self._normalize_position(position, reverse=True),
+                    'gripper_measure_timestamp': t_recv,
+                    'gripper_receive_timestamp': t_recv,
+                    'gripper_timestamp': t_recv - self.receive_latency
                 }
                 self.ring_buffer.put(state)
 
@@ -213,18 +224,20 @@ class XArmGripperController(mp.Process):
                         keep_running = False
                         break
                     elif cmd == Command.SCHEDULE_WAYPOINT.value:
-                        target_pos = command['target_pos'] * self.scale
+                        target_pos = command['target_pos']  # Already normalized 0-1
                         target_time = command['target_time']
-                        # translate global time to monotonic time
+                        # Translate global time to monotonic time
                         target_time = time.monotonic() - time.time() + target_time
                         curr_time = t_now
                         pose_interp = pose_interp.schedule_waypoint(
-                            pose=[target_pos, 0, 0, 0, 0, 0],
+                            pose=[target_pos],
                             time=target_time,
                             curr_time=curr_time,
                             last_waypoint_time=last_waypoint_time
                         )
                         last_waypoint_time = target_time
+                        if self.verbose:
+                            print(f"Scheduled gripper waypoint: {target_pos} at time {target_time}")
                     elif cmd == Command.RESTART_PUT.value:
                         t_start = command['target_time'] - time.time() + time.monotonic()
                         iter_idx = 1

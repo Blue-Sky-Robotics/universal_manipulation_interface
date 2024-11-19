@@ -328,10 +328,15 @@ class BimanualUmiEnv:
     @property
     def is_ready(self):
         ready_flag = self.camera.is_ready
-        for robot in self.robots:
-            ready_flag = ready_flag and robot.is_ready
-        for gripper in self.grippers:
-            ready_flag = ready_flag and gripper.is_ready
+        print(f"Camera ready: {ready_flag}")
+        for i, robot in enumerate(self.robots):
+            robot_ready = robot.is_ready
+            print(f"Robot {i} ready: {robot_ready}")
+            ready_flag = ready_flag and robot_ready
+        for i, gripper in enumerate(self.grippers):
+            gripper_ready = gripper.is_ready
+            print(f"Gripper {i} ready: {gripper_ready}")
+            ready_flag = ready_flag and gripper_ready
         return ready_flag
     
     def start(self, wait=True):
