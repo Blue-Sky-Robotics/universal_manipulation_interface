@@ -21,13 +21,7 @@ class Command(enum.Enum):
 
 class XArmInterface:
     def __init__(self, ip='192.168.1.211'):
-        # Initialize transformation matrix only once
-        self.tx_ur5_xarm = np.identity(4)
-
-        self.tx_ur5_xarm[:3,:3] = st.Rotation.from_euler('xyz', [0, 0, 0]).as_matrix()
-        # Cache the inverse transformation
-        self.tx_xarm_ur5 = np.linalg.inv(self.tx_ur5_xarm)
-        
+             
         self.arm = XArmAPI(ip)
         self.last_pose = None
         self.target_pose = None
@@ -57,7 +51,7 @@ class XArmInterface:
         
     def get_ee_pose(self):
         """Get end-effector pose and convert to UR5 convention"""
-        e_code, xarm_pose = self.arm.get_position(is_radian=True)
+        e_code, xarm_pose = self.arm.get_position_aa(is_radian=True)
         if self.verbose:
             print(f"XArm raw pose: {xarm_pose}")
             
@@ -108,14 +102,6 @@ class XArmInterface:
         if self.verbose:
             print(f"Target pose: {pose}")
         
-        # Keep step size limiting for safety
-        if self.last_pose is not None:
-            step_size = np.linalg.norm(xarm_pose[:3] - self.last_pose[:3])
-            if step_size > 0.005:  # 5mm maximum step
-                fraction = 0.005 / step_size
-                interpolated_pose = self.last_pose + fraction * (xarm_pose - self.last_pose)
-                xarm_pose = interpolated_pose
-        
         # Keep mode checking for safety
         if self.arm.mode != 1 or self.arm.state != 0:
             self.arm.set_mode(1)
@@ -123,7 +109,7 @@ class XArmInterface:
             time.sleep(0.01)
             
         # Execute command
-        ret = self.arm.set_servo_cartesian(xarm_pose.tolist(), 
+        ret = self.arm.set_servo_cartesian_aa(xarm_pose.tolist(), 
                                         speed=speed,
                                         mvacc=accel,
                                         is_radian=True,
