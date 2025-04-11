@@ -102,7 +102,8 @@ class UvcCamera(mp.Process):
                 shm_manager=shm_manager,
                 fps=capture_fps, 
                 input_pix_fmt='bgr24', 
-                bit_rate=6000*1000)
+                bit_rate=6000*1000,
+                buffer_size=1024)
         assert video_recorder.fps == capture_fps
 
         # copied variables
@@ -222,17 +223,35 @@ class UvcCamera(mp.Process):
             put_start_time = self.put_start_time
             if put_start_time is None:
                 put_start_time = time.time()
+            
+            frame_count = 0
+            last_debug_time = time.time()
 
             # reuse frame buffer
             iter_idx = 0
             t_start = time.time()
             while not self.stop_event.is_set():
-                ts = time.time()
+                current_time = time.time()
+                if current_time - last_debug_time > 1.0:
+                    buffer_usage = self.video_recorder.img_queue.qsize()
+                    print(f"[UvcCamera {self.dev_video_path}] Processed {frame_count} frames in last 5s")
+                    print(f"[UvcCamera {self.dev_video_path}] Buffer usage: {self.video_recorder.img_queue.qsize()}/{self.video_recorder.buffer_size}")
+                    print(f"[UvcCamera {self.dev_video_path}] Buffer usage: {buffer_usage}/{self.video_recorder.buffer_size}")
+                    if buffer_usage > 0:  # Add extra logging when buffer starts filling
+                        print(f"[WARNING] Buffer starting to fill: {buffer_usage}/{self.video_recorder.buffer_size}")
+                    frame_count = 0
+                    last_debug_time = current_time
+                    
                 ret = cap.grab()
                 assert ret
                 
-                # directly write into shared memory to avoid copy
-                frame = self.video_recorder.get_img_buffer()
+                try:
+                    frame = self.video_recorder.get_img_buffer()
+                    frame_count += 1
+                except Full:
+                    print(f"[UvcCamera {self.dev_video_path}] Buffer full at {current_time}! Size: {self.video_recorder.img_queue.qsize()}/{self.video_recorder.buffer_size}")
+                    raise
+                
                 ret, frame = cap.retrieve(frame)
                 t_recv = time.time()
                 assert ret

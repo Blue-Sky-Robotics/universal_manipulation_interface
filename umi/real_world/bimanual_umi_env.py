@@ -109,8 +109,8 @@ class BimanualUmiEnv:
         for path in v4l_paths:
             if 'Cam_Link_4K' in path:
                 res = (3840, 2160)
-                fps = 30
-                buf = 3
+                fps = 15
+                buf = 10
                 bit_rate = 6000*1000
                 def tf4k(data, input_res=res):
                     img = data['color']
@@ -128,7 +128,7 @@ class BimanualUmiEnv:
             else:
                 res = (1920, 1080)
                 fps = 60
-                buf = 1
+                buf = 3
                 bit_rate = 3000*1000
 
                 is_mirror = None
@@ -163,10 +163,10 @@ class BimanualUmiEnv:
             resolution.append(res)
             capture_fps.append(fps)
             cap_buffer_size.append(buf)
-            video_recorder.append(VideoRecorder.create_hevc_nvenc(
+            video_recorder.append(VideoRecorder.create_h264(
                 fps=fps,
                 input_pix_fmt='bgr24',
-                bit_rate=bit_rate
+                crf=20
             ))
 
             def vis_tf(data, input_res=res):

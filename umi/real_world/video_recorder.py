@@ -19,7 +19,7 @@ class VideoRecorder(mp.Process):
         fps,
         codec,
         input_pix_fmt,
-        buffer_size=128,
+        buffer_size=1024,
         no_repeat=False,
         # options for codec
         **kwargs     
@@ -44,7 +44,7 @@ class VideoRecorder(mp.Process):
     @classmethod
     def create_h264(cls,
             fps,
-            codec='h264',
+            codec='libx264', # Changing to libx264
             input_pix_fmt='rgb24',
             output_pix_fmt='yuv420p',
             crf=18,
@@ -71,6 +71,7 @@ class VideoRecorder(mp.Process):
             input_pix_fmt='rgb24',
             output_pix_fmt='yuv420p',
             bit_rate=6000*1000,
+            buffer_size=1024,
             options={
                 'tune': 'll', 
                 'preset': 'p1'
@@ -83,6 +84,7 @@ class VideoRecorder(mp.Process):
             input_pix_fmt=input_pix_fmt,
             pix_fmt=output_pix_fmt,
             bit_rate=bit_rate,
+            buffer_size=buffer_size,
             options=options,
             **kwargs
         )
@@ -178,9 +180,16 @@ class VideoRecorder(mp.Process):
         Get view to the next img queue memory
         for zero-copy writing
         """
-        data = self.img_queue.get_next_view()
-        img = data['img']
-        return img
+        try:
+            t_start = time.time()
+            data = self.img_queue.get_next_view()
+            t_end = time.time()
+            if (t_end - t_start) > 1.0/self.fps:
+                print(f"Warning: get_img_buffer took {t_end - t_start:.3f}s")
+            return data['img']
+        except Full:
+            print(f"Buffer full! Size: {self.img_queue.qsize()}/{self.buffer_size}")
+            raise
     
     def write_img_buffer(self, img: np.ndarray, frame_time=None):
         """
